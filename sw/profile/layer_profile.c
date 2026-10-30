@@ -15,9 +15,9 @@
 // Cycles come from rdcycle on the Rocket core, taken after gemmini_fence() so
 // they include the accelerator finishing, not just the CPU issuing commands.
 //
-// Inputs and weights stay zero (.bss): Gemmini has no data-dependent timing, and
-// filling buffers would burn simulation time on the CPU. kind: 0 conv, 1 depthwise
-// conv, 2 matmul (in_r = I, in_ch = K, out_ch = J).
+// Inputs and weights are never initialized: Gemmini has no data-dependent timing,
+// and filling buffers would burn simulation time on the CPU. kind: 0 conv,
+// 1 depthwise conv, 2 matmul (in_r = I, in_ch = K, out_ch = J).
 
 #include <stdint.h>
 #include <stddef.h>
@@ -68,9 +68,13 @@ static const layer_t layers[] = {
 
 #define NUM_LAYERS ((int)(sizeof(layers) / sizeof(layers[0])))
 
-// Buffers: 128 KiB each for input, weights and output, plus bias.
+// Buffers: 128 KiB each for input, weights and output, plus bias. They sit at a
+// fixed DRAM address OUTSIDE the ELF image instead of in a static array: the
+// loader zero-fills .bss through the simulator's serial TSI link at roughly 25
+// cycles per byte, so a 400 KB .bss cost ~10M cycles (over an hour) before main()
+// even started. DRAM is 4 GiB at 0x80000000 in these configs (Spike has 2 GiB).
 #define REGION (128 * 1024)
-static uint8_t heap[3 * REGION + 8192] __attribute__((aligned(64)));
+#define BUF_BASE 0x88000000UL
 
 static const uint8_t SET_A[8] = {
     MAIN_LD_CYCLES, MAIN_ST_CYCLES, MAIN_EX_CYCLES, MAIN_LD_ST_CYCLES,
@@ -85,10 +89,10 @@ static const uint8_t SET_B[8] = {
 static int out_dim(int in, const layer_t *l) { return (in + 2 * l->pad - l->k) / l->stride + 1; }
 
 static void run_layer(const layer_t *l, int out_r, int out_c) {
-    elem_t *input = (elem_t *)&heap[0];
-    elem_t *weights = (elem_t *)&heap[REGION];
-    elem_t *output = (elem_t *)&heap[2 * REGION];
-    acc_t *bias = (acc_t *)&heap[3 * REGION];
+    elem_t *input = (elem_t *)(BUF_BASE);
+    elem_t *weights = (elem_t *)(BUF_BASE + REGION);
+    elem_t *output = (elem_t *)(BUF_BASE + 2 * REGION);
+    acc_t *bias = (acc_t *)(BUF_BASE + 3 * REGION);
 
     if (l->kind == KIND_CONV) {
         tiled_conv_auto(1, l->in_r, l->in_c, l->in_ch, l->out_ch, out_r, out_c,

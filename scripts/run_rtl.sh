@@ -35,7 +35,10 @@ LOG=$OUT_DIR/$CONFIG.$(basename "$BINARY").$(printf '%s' "$(realpath "$BINARY")"
 
 start=$(date +%s)
 rc=0
-timeout 3600 "$SIM" +permissive +dramsim +dramsim_ini_dir="$DRAM" \
+# stdbuf -oL: a long run's output (e.g. a profiler's CSV) shows up as it is printed
+# instead of only when the stdio buffer fills, and survives a timeout kill.
+# TIMEOUT_SECS bounds the wall-clock time; the simulator runs at only ~2-3k cycles/s.
+timeout "${TIMEOUT_SECS:-3600}" stdbuf -oL -eL "$SIM" +permissive +dramsim +dramsim_ini_dir="$DRAM" \
     +max-cycles="$MAX_CYCLES" +permissive-off "$BINARY" > "$LOG" 2>&1 || rc=$?
 wall=$(( $(date +%s) - start ))
 
