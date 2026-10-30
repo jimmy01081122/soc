@@ -1,7 +1,8 @@
-# Spike 功能測試：gemmini-rocc-tests／bareMetalC
+# Spike 功能測試：Gemmini8x8RocketConfig（DIM=8）
 
-由 `scripts/spike_baremetal.sh` 產生，2026-10-30 14:04 UTC。
-Spike 以 `--extension=gemmini` 執行，結束碼 0 算通過。這只驗證功能，不給效能數字。
+由 `scripts/spike_baremetal.sh` 產生，2026-10-30 14:15 UTC。
+Spike 以 `--extension=gemmini` 執行，libgemmini 與測試程式都依這個設定的 `gemmini_params.h` 建置。
+結束碼 0 算通過；這只驗證功能，不給效能數字。
 
 - gemmini：`8c3f9923a44a2fe2c7930587be297d6d4f8c09ca`
 - gemmini-rocc-tests：`7c540b3adf1b86ad93d07f893abe3a73489b568e`

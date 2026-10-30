@@ -46,6 +46,7 @@ rm -f "$SIM"
 STATS=$(mktemp)    # "<lowest MemAvailable MiB> <highest swap MiB>"
 PHASES=$(mktemp)   # "<seconds> <label>" lines
 start=$(date +%s)
+touch "$LOG_DIR/.build_sim_start_$CONFIG"
 echo "$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo) 0" > "$STATS"
 
 # Sample memory and notice phase changes every 5 s while make runs.
@@ -82,6 +83,15 @@ read -r min_avail max_swap < "$STATS"
 result=ok
 if (( status != 0 )) || [[ ! -x $SIM ]]; then
     result="失敗（make 結束碼 $status）"
+fi
+
+# Elaborating Gemmini rewrites gemmini-rocc-tests/include/gemmini_params.h for
+# whichever config was built last. Keep this config's copy so software and
+# libgemmini can be built to match it later (scripts/gemmini_sw.sh).
+HEADER=$CHIPYARD_DIR/generators/gemmini/software/gemmini-rocc-tests/include/gemmini_params.h
+if [[ $result == ok && $HEADER -nt $LOG_DIR/.build_sim_start_$CONFIG ]]; then
+    mkdir -p "$CHIPYARD_DIR/.variants/$CONFIG"
+    cp -p "$HEADER" "$CHIPYARD_DIR/.variants/$CONFIG/gemmini_params.h"
 fi
 
 gen=$SIM_DIR/generated-src
