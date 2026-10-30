@@ -91,7 +91,8 @@
 - **資源偏緊**：
   - Gemmini 16×16 的 Chisel elaboration 加 Verilator 編譯，可能吃掉大部分的 15 GB 記憶體。
   - 磁碟要省著用：不裝 FireSim／FireMarshal，舊的建置產物要清掉。
-  - 實際用量在第 1 階段量出來，寫進 §11。
+  - 實測（2026-10-30，Chipyard 1.15.0 加 Gemmini）：安裝完成後磁碟多用了約 12.5 GB（`df` 差額），剩約 18 GB；成功的步驟合計約 13 分鐘。16×16 的 Verilator 建置用量還沒量。
+  - Maven Central 對這個環境的共用出口會回 HTTP 429（約三成請求）。`setup_chipyard.sh` 讓 sbt 改用 Google 的 Maven 鏡像並重試；之後在這個環境新增 sbt 依賴也要走同一條路（`source scripts/chipyard_env.sh` 會帶上設定）。
 
 ## 4. 系統架構
 
@@ -303,7 +304,7 @@ results/         profiling 數據、比較表、Vivado 報告（results/vivado/�
 |---|---|
 | 雲端環境會被回收，Chipyard 要重裝 | 腳本化、固定版本；結果都 commit；必要時寫進環境的 Setup script |
 | 15 GB 記憶體不夠 16×16 Gemmini 的 elaboration 或 Verilator 編譯 | 先試 8×8；調 JVM heap、Verilator 的平行度；真的不行，16×16 只用 Spike 與效能模型 |
-| 31 GB 磁碟不夠 | 不裝 FireSim／FireMarshal；清掉舊的建置；第 1 階段量實際用量 |
+| 31 GB 磁碟不夠 | 不裝 FireSim／FireMarshal；清掉舊的建置。安裝後剩約 18 GB，Verilator 建置會再用掉一部分（待量） |
 | Verilator 太慢 | 單層優先；小模型；Spike 先驗功能 |
 | Gemmini 的 Verilog 進 Vivado 時 SRAM 推不成 BRAM | 用行為模型；必要時改寫 SRAM 包裝 |
 | 8×8 也放不進 Z7020 | 縮 SRAM、縮陣列，或只做 NPU 本體的 OOC 合成 |

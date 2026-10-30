@@ -1,6 +1,6 @@
 # Chipyard 環境紀錄
 
-由 `scripts/setup_chipyard.sh` 產生，2026-10-30 13:45 UTC。
+由 `scripts/setup_chipyard.sh` 產生，2026-10-30 14:02 UTC。
 
 ## 主機
 
@@ -10,7 +10,7 @@
 | glibc | 2.39 |
 | CPU | 4 核 |
 | 記憶體 | 15 GiB |
-| 磁碟可用（/home/user） | 21G |
+| 磁碟可用（/home/user） | 18G |
 
 ## 版本
 
@@ -30,7 +30,7 @@
 | toolchains/riscv-tools/riscv-pk | `9c61d29846d8521d9487a57739330f9682d5b542` |
 | riscv64-unknown-elf-gcc | riscv64-unknown-elf-gcc (g6afcc4f6d-dirty) 16.1.0 |
 | Verilator | Verilator 5.022 2024-02-24 rev conda-forge build 1 |
-| firtool |  |
+| firtool | CIRCT firtool-1.75.0 |
 | Java | openjdk version "20.0.2-internal" 2023-07-18 |
 
 ## 步驟耗時
@@ -42,11 +42,16 @@
 | conda | ok | 2026-10-30 13:37 | 86 |
 | submodules | ok | 2026-10-30 13:39 | 74 |
 | buildsetup | failed(2) | 2026-10-30 13:40 | 286 |
+| toolchain | ok | 2026-10-30 13:49 | 271 |
+| scalacompile | ok | 2026-10-30 13:56 | 290 |
+| circt | ok | 2026-10-30 14:01 | 33 |
+| libgemmini | ok | 2026-10-30 14:02 | 3 |
 
 ## 磁碟用量
 
 | 路徑 | 大小 |
 |---|---|
-| `/home/user/chipyard` | 7.4G |
-| `/home/user/chipyard/.conda-env` | 4.7G |
+| `/home/user/chipyard` | 11G |
+| `/home/user/chipyard/.conda-env` | 7.3G |
 | `/home/user/miniforge3` | 5.2G |
+| `/root/.cache/coursier` | 223M |
