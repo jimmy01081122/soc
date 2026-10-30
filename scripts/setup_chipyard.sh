@@ -12,7 +12,7 @@
 #
 # Finished steps leave a marker and are skipped when the script is rerun.
 #
-# Usage: scripts/setup_chipyard.sh [--list] [--from STEP] [--only STEP] [--skip-precompile]
+# Usage: scripts/setup_chipyard.sh [--list] [--from STEP] [--only STEP]
 #
 # Afterwards, enter the environment with:  source scripts/chipyard_env.sh
 
@@ -34,8 +34,10 @@ CHIPYARD_URL=https://github.com/ucb-bar/chipyard.git
 # Shipped with the tag; sysroot 2.34, so it also runs on newer-glibc hosts.
 LOCKFILE_REL=conda-reqs/conda-lock-reqs/conda-requirements-riscv-tools-linux-64-lean.conda-lock.yml
 
-STEPS=(miniforge clone conda submodules buildsetup libgemmini)
-SKIP_PRECOMPILE=0
+STEPS=(miniforge clone conda submodules toolchain scalacompile circt libgemmini)
+# Maven Central answers ~30% of requests from the sandbox's shared proxy with 429.
+MAVEN_MIRROR=https://maven-central.storage-download.googleapis.com/maven2/
+SBT_TRIES=${SBT_TRIES:-8}
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -55,9 +57,9 @@ usage() {
 
 activate_env() {
     set +u
+    export WORK_ROOT CONDA_ROOT CHIPYARD_DIR
     # shellcheck disable=SC1091
-    source "$CONDA_ROOT/etc/profile.d/conda.sh"
-    conda activate "$CHIPYARD_DIR/.conda-env"
+    source "$REPO_ROOT/scripts/chipyard_env.sh"
     set -u
 }
 
@@ -145,16 +147,57 @@ step_submodules() {
     git -C "$CHIPYARD_DIR/generators/gemmini" submodule update --init software/libgemmini
 }
 
-# build-setup.sh steps 3 (Spike/pk/tests), 5 (Scala precompile), 10 (CIRCT)
-# and 11 (cleanup); --use-lean-conda already skips 4 and 6-9.
-step_buildsetup() {
-    activate_env
-    local skips=(-s 1 -s 2)
-    if (( SKIP_PRECOMPILE )); then
-        skips+=(-s 5)
-    fi
+# Runs one numbered step of Chipyard's build-setup.sh, skipping all the others
+# (--use-lean-conda already skips 4 and 6-9). Steps: 3 Spike/pk/riscv-tests,
+# 5 Scala precompile, 10 CIRCT, 11 repository cleanup.
+build_setup_steps() {
+    local want=" $* " skips=() n
+    for n in 1 2 3 4 5 6 7 8 9 10 11; do
+        [[ $want == *" $n "* ]] || skips+=(-s "$n")
+    done
     (cd "$CHIPYARD_DIR" && ./build-setup.sh riscv-tools --use-lean-conda "${skips[@]}")
+}
+
+step_toolchain() {
+    activate_env
+    build_setup_steps 3
     [[ -x $RISCV/bin/spike ]] || die "spike not installed in $RISCV"
+}
+
+# Point sbt's launcher and coursier at a Maven Central mirror (Maven Central
+# stays as the fallback). Both are read through the env set by chipyard_env.sh.
+write_build_mirrors() {
+    mkdir -p "$CHIPYARD_DIR/.sbt"
+    cat > "$CHIPYARD_DIR/.sbt/repositories" <<EOF
+[repositories]
+  local
+  maven-mirror: $MAVEN_MIRROR
+  maven-central
+EOF
+    cat > "$CHIPYARD_DIR/.sbt/coursier-mirrors.properties" <<EOF
+maven-mirror.from=https://repo1.maven.org/maven2|https://repo.maven.apache.org/maven2
+maven-mirror.to=$MAVEN_MIRROR
+EOF
+}
+
+# sbt keeps what it already downloaded, so each retry only fetches what is missing.
+step_scalacompile() {
+    write_build_mirrors
+    activate_env
+    local try
+    for (( try = 1; try <= SBT_TRIES; try++ )); do
+        echo "-- sbt precompile, attempt $try of $SBT_TRIES"
+        if build_setup_steps 5; then
+            return 0
+        fi
+        sleep $(( 15 * try ))
+    done
+    die "Scala precompile still failing after $SBT_TRIES attempts"
+}
+
+step_circt() {
+    activate_env
+    build_setup_steps 10 11
     command -v firtool >/dev/null || die "firtool not on PATH"
 }
 
@@ -271,7 +314,6 @@ main() {
             --list) printf '%s\n' "${STEPS[@]}"; exit 0 ;;
             --from) from=${2:?}; shift ;;
             --only) only=${2:?}; shift ;;
-            --skip-precompile) SKIP_PRECOMPILE=1 ;;
             -h|--help) usage 0 ;;
             *) echo "unknown option: $1" >&2; usage 1 ;;
         esac
