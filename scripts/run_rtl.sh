@@ -29,7 +29,9 @@ OUT_DIR=${OUT_DIR:-$(dirname "$CHIPYARD_DIR")/.soc-setup/rtl_runs}
 [[ -x $SIM ]] || { echo "no simulator $SIM; run scripts/build_sim.sh $CONFIG" >&2; exit 2; }
 [[ -f $BINARY ]] || { echo "no binary $BINARY" >&2; exit 2; }
 mkdir -p "$OUT_DIR"
-LOG=$OUT_DIR/$CONFIG.$(basename "$BINARY").log
+# Key the log on the full binary path so runs of same-named binaries from
+# different variants (or run in parallel) cannot overwrite each other.
+LOG=$OUT_DIR/$CONFIG.$(basename "$BINARY").$(printf '%s' "$(realpath "$BINARY")" | cksum | cut -d' ' -f1).log
 
 start=$(date +%s)
 rc=0

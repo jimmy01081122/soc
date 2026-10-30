@@ -45,6 +45,8 @@ pass=0 fail=0 skipped=0 rows="" unexpected=""
 cd "$VARIANT/rocc-tests/build/bareMetalC"
 for bin in *-baremetal; do
     name=${bin%-baremetal}
+    # our own profiling programs (sw/profile) are not part of the upstream suite
+    [[ -f $REPO_ROOT/sw/profile/$name.c ]] && continue
     rc=0
     timeout 120 spike "${SPIKE_ARGS[@]}" "$bin" > /dev/null 2>&1 || rc=$?
     if (( rc == 0 )); then

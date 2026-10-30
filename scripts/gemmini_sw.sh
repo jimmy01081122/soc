@@ -45,6 +45,18 @@ mkdir -p "$DST"
 tar -C "$SRC" -cf - bareMetalC include riscv-tests rocc-software Makefile.in Makefrag configure configure.ac \
     | tar -C "$DST" -xf -
 cp "$HEADER" "$DST/include/gemmini_params.h"
+
+# Our own programs (sw/profile/*.c) are built the same way as the upstream tests:
+# drop the source into bareMetalC and add it to the Makefile's test list.
+for src in "$REPO_ROOT"/sw/profile/*.c; do
+    [[ -e $src ]] || continue
+    cp "$src" "$DST/bareMetalC/"
+    entry=$(mktemp)
+    printf '\t%s \\\n' "$(basename "$src" .c)" > "$entry"
+    sed -i "/^tests = \\\\\$/r $entry" "$DST/bareMetalC/Makefile"
+    rm -f "$entry"
+done
+
 mkdir "$DST/build"
 (cd "$DST/build" && ../configure > configure.log 2>&1)
 make -C "$DST/build" -j"$(nproc)" BAREMETAL_ONLY=1 bareMetalC > "$DST/build/make.log" 2>&1
