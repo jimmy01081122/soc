@@ -164,19 +164,22 @@ step_toolchain() {
     [[ -x $RISCV/bin/spike ]] || die "spike not installed in $RISCV"
 }
 
-# Point sbt's launcher and coursier at a Maven Central mirror (Maven Central
-# stays as the fallback). Both are read through the env set by chipyard_env.sh.
+# Replace sbt's repository list (launcher, plugins and the build itself) with a
+# Maven Central mirror first and Maven Central as the fallback. chipyard_env.sh
+# passes this file to sbt with -Dsbt.override.build.repos=true. That drops the
+# sonatype resolvers in Chipyard's build.sbt, which is fine because every
+# dependency it pins (Chisel 3.6.1 / 6.7.0 / 7.13.0 etc.) is a Central release.
+# (coursier's COURSIER_MIRRORS file is not honored by sbt's shaded coursier.)
 write_build_mirrors() {
     mkdir -p "$CHIPYARD_DIR/.sbt"
+    rm -f "$CHIPYARD_DIR/.sbt/coursier-mirrors.properties"
     cat > "$CHIPYARD_DIR/.sbt/repositories" <<EOF
 [repositories]
   local
+  maven-local
   maven-mirror: $MAVEN_MIRROR
   maven-central
-EOF
-    cat > "$CHIPYARD_DIR/.sbt/coursier-mirrors.properties" <<EOF
-maven-mirror.from=https://repo1.maven.org/maven2|https://repo.maven.apache.org/maven2
-maven-mirror.to=$MAVEN_MIRROR
+  sbt-plugin-releases: https://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/, [organization]/[module](/scala_[scalaVersion])(/sbt_[sbtVersion])/[revision]/[type]s/[artifact](-[classifier]).[ext]
 EOF
 }
 

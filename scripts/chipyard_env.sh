@@ -25,10 +25,7 @@ if [[ -z ${SOC_BUILD_ENV_SET:-} ]]; then
     # about a third of requests from the shared sandbox proxy with HTTP 429).
     export SBT_OPTS="-Dsbt.ivy.home=$CHIPYARD_DIR/.ivy2 -Dsbt.global.base=$CHIPYARD_DIR/.sbt -Dsbt.boot.directory=$CHIPYARD_DIR/.sbt/boot/ -Dsbt.color=false -Dsbt.supershell=false -Dsbt.server.forcestart=true"
     if [[ -f $CHIPYARD_DIR/.sbt/repositories ]]; then
-        SBT_OPTS="$SBT_OPTS -Dsbt.repository.config=$CHIPYARD_DIR/.sbt/repositories"
-    fi
-    if [[ -f $CHIPYARD_DIR/.sbt/coursier-mirrors.properties ]]; then
-        export COURSIER_MIRRORS=$CHIPYARD_DIR/.sbt/coursier-mirrors.properties
+        SBT_OPTS="$SBT_OPTS -Dsbt.repository.config=$CHIPYARD_DIR/.sbt/repositories -Dsbt.override.build.repos=true"
     fi
     export SOC_BUILD_ENV_SET=1
 fi
