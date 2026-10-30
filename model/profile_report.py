@@ -10,7 +10,9 @@ Derived columns, per layer (warm passes only, averaged where two passes agree):
   breakdown   share of cycles by which of the load / store / execute controllers
               were busy (the seven MAIN_* counters are mutually exclusive); the rest
               is idle, i.e. none of them busy (CPU-side work, waiting on commands)
-  bytes       DMA traffic read from / written to memory (RDMA/WDMA counters)
+  bytes       raw RDMA/WDMA byte counters. NOT trusted: they disagree with the layer
+              sizes (reads are 0 for most convolutions), cause not found, so the
+              markdown table leaves them out; the CSV keeps the raw values.
 
 Usage: model/profile_report.py CONFIG LOGFILE [LOGFILE ...]
 """
@@ -104,16 +106,18 @@ def write_md(path, config, dim, rows):
         "- 利用率 = MACs ÷ (DIM² × 週期)：PE 陣列峰值的幾分之幾。",
         "- 控制器忙碌分解：load／store／execute 三個控制器同時忙碌的組合（互斥，來自 MAIN_* 計數器）；",
         "  「閒置」是三者都不忙的週期（等 CPU 發命令、CPU 端自己的運算等）。", "",
-        "| 模型 | 層 | 類型 | MACs | 冷 | 暖 | 理想 | 利用率 | EX 忙 | 閒置 | 讀 B | 寫 B |",
-        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| 模型 | 層 | 類型 | MACs | 冷 | 暖 | 理想 | 利用率 | EX 忙 | 閒置 |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for r in rows:
         lines.append(
             f"| {r['model']} | {r['layer']} | {r['kind']} | {r['macs']:,} | {r['cold_cycles']:,} | "
             f"{r['warm_cycles']:,.0f} | {r['ideal_cycles']:,.0f} | {pct(r['util'])} | "
-            f"{pct(r['ex_share'])} | {pct(r['idle_share'])} | {r['b_rdma_bytes']:,} | {r['b_wdma_bytes']:,} |")
+            f"{pct(r['ex_share'])} | {pct(r['idle_share'])} |")
     worst = max((r["pass_spread"] for r in rows), default=0.0)
-    lines += ["", f"兩次暖機執行的週期數最大差距：{pct(worst)}。"]
+    lines += ["", f"兩次暖機執行的週期數最大差距：{pct(worst)}。", "",
+              "DMA 位元組計數器（RDMA_BYTES_REC、WDMA_BYTES_SENT）的值與層的大小對不上",
+              "（多數卷積的讀取量是 0），原因還沒查出來，所以這裡不列；CSV 保留原始值，請勿引用。"]
     pathlib.Path(path).write_text("\n".join(lines) + "\n")
 
 
