@@ -42,10 +42,12 @@ timeout "${TIMEOUT_SECS:-3600}" stdbuf -oL -eL "$SIM" +permissive +dramsim +dram
     +max-cycles="$MAX_CYCLES" +permissive-off "$BINARY" > "$LOG" 2>&1 || rc=$?
 wall=$(( $(date +%s) - start ))
 
-if grep -q "\*\*\* FAILED \*\*\*" "$LOG"; then
-    verdict="FAIL ($(grep -m1 -o '\*\*\* FAILED \*\*\*.*' "$LOG"))"
-elif grep -qi "timeout\|max-cycles" "$LOG"; then
+# A cycle-limit timeout prints "*** FAILED *** (timeout) after N simulation cycles",
+# so it has to be recognized before the generic FAILED case.
+if grep -q "\*\*\* FAILED \*\*\*.*(timeout)" "$LOG"; then
     verdict="TIMEOUT (max-cycles $MAX_CYCLES)"
+elif grep -q "\*\*\* FAILED \*\*\*" "$LOG"; then
+    verdict="FAIL ($(grep -m1 -o '\*\*\* FAILED \*\*\*.*' "$LOG"))"
 elif (( rc == 0 )) && grep -q 'Verilog \$finish' "$LOG"; then
     verdict=PASS
 else
