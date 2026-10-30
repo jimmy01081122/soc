@@ -15,6 +15,7 @@ Derived columns, per layer (warm passes only, averaged where two passes agree):
               markdown table leaves them out; the CSV keeps the raw values.
 
 Usage: model/profile_report.py CONFIG LOGFILE [LOGFILE ...]
+       model/profile_report.py --compare CONFIG_A CONFIG_B   (needs both CSVs already written)
 """
 import csv
 import pathlib
@@ -103,7 +104,9 @@ def write_md(path, config, dim, rows):
         f"# 逐層 profiling：{config}（DIM={dim}）", "",
         "由 `model/profile_report.py` 從 `sw/profile/layer_profile.c` 的輸出產生。",
         "週期數是 Rocket 的 `rdcycle`，在 `gemmini_fence()` 之後讀取；暖機數字是兩次暖機執行的平均。", "",
-        "- 利用率 = MACs ÷ (DIM² × 週期)：PE 陣列峰值的幾分之幾。",
+        "- 利用率 = MACs ÷ (DIM² × 週期)：PE 陣列峰值的幾分之幾；這是主要指標。",
+        "- EX 忙 = EXE_ACTIVE_CYCLE ÷ 週期：execute 控制器處於 compute 狀態的比例。它量的是控制器狀態而不是 PE 的佔用，",
+        "  所以可以低於利用率（例如 conv_32to32），只當輔助參考。",
         "- 控制器忙碌分解：load／store／execute 三個控制器同時忙碌的組合（互斥，來自 MAIN_* 計數器）；",
         "  「閒置」是三者都不忙的週期（等 CPU 發命令、CPU 端自己的運算等）。", "",
         "| 模型 | 層 | 類型 | MACs | 冷 | 暖 | 理想 | 利用率 | EX 忙 | 閒置 |",
@@ -121,7 +124,47 @@ def write_md(path, config, dim, rows):
     pathlib.Path(path).write_text("\n".join(lines) + "\n")
 
 
+# Layers that occur more than once in the real model (counted once in the profile).
+REPEATS = {("resnet8", "conv_16to16"): 2}
+
+
+def compare(a, b):
+    out = pathlib.Path(__file__).resolve().parents[1] / "results"
+
+    def load(cfg):
+        with open(out / f"profile_{cfg}.csv") as f:
+            return {(r["model"], r["layer"]): r for r in csv.DictReader(f)}
+
+    ra, rb = load(a), load(b)
+    keys = [k for k in ra if k in rb]
+    pct = lambda x: f"{100 * float(x):.1f}%"
+    lines = [
+        f"# 逐層比較：{a} 對 {b}", "",
+        "暖機週期數與利用率來自 `results/profile_<config>.csv`。加速比 = 前者週期 ÷ 後者週期；",
+        "理想加速比是兩個陣列的 PE 數比（8×8 對 16×16 是 4×）；1.0 以下代表後者反而比較慢。", "",
+        f"| 模型 | 層 | 類型 | {a} 週期 | {b} 週期 | 加速比 | {a} 利用率 | {b} 利用率 |",
+        "|---|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for k in keys:
+        x, y = ra[k], rb[k]
+        wa, wb = float(x["warm_cycles"]), float(y["warm_cycles"])
+        lines.append(f"| {k[0]} | {k[1]} | {x['kind']} | {wa:,.0f} | {wb:,.0f} | {wa / wb:.2f}× | "
+                     f"{pct(x['util'])} | {pct(y['util'])} |")
+    # whole-model totals over the profiled layers only
+    lines += ["", "## 已 profile 的層加總", "",
+              "只含有 profile 的卷積／矩陣乘法層（重複的層照真實模型的次數計），不含池化、殘差相加等沒有 profile 的部分。", "",
+              f"| 模型 | {a} 週期 | {b} 週期 | 加速比 |", "|---|---:|---:|---:|"]
+    for model in dict.fromkeys(k[0] for k in keys):
+        ta = sum(float(ra[k]["warm_cycles"]) * REPEATS.get(k, 1) for k in keys if k[0] == model)
+        tb = sum(float(rb[k]["warm_cycles"]) * REPEATS.get(k, 1) for k in keys if k[0] == model)
+        lines.append(f"| {model} | {ta:,.0f} | {tb:,.0f} | {ta / tb:.2f}× |")
+    (out / "profile_comparison.md").write_text("\n".join(lines) + "\n")
+    print(f"{len(keys)} layers -> {out}/profile_comparison.md")
+
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--compare":
+        return compare(sys.argv[2], sys.argv[3])
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     config, logs = sys.argv[1], sys.argv[2:]
