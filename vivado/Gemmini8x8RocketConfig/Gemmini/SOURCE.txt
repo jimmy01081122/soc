@@ -1,0 +1,5 @@
+config:  Gemmini8x8RocketConfig
+top:     Gemmini
+chipyard: 157dd69e49b9866be2bf8db390ee78bc38cd4438
+gemmini:  8c3f9923a44a2fe2c7930587be297d6d4f8c09ca
+exported: 2026-10-31 00:08 UTC
